@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Todo App",
+    "slug": "todo-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dkiflom.todoapp"
+    },
+    "android": {
+      "package": "com.dkiflom.todoapp"
+    }
+  }
+} 

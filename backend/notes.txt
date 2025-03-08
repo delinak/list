@@ -1,0 +1,51 @@
+// features
+* create multiple todo list
+* categorys for todo lists : lifestyle, fitness, health
+* notes in category
+* peek at cateogory lists - first 5 lists
+* peek at list - first 5 elements
+* randomize from a list
+* completed shown in highlighted green, default is orange
+* different themes
+* assign a standalone task to a list later
+
+
+{
+    "task": "hw",
+    "completed": false,
+    "description": "math homework: calculus of music",
+    "category": "school"
+}
+
+{
+    "task": "piano",
+    "completed": false,
+    "description": "little flower",
+    "category": "ec"
+}
+
+{
+    "task": "dishes",
+    "completed": true,
+    "description": "chores",
+    "category": "home"
+}
+
+{
+    "name": "dishes",
+    "description": "chores"
+}
+
+1/14
+tested basic db operations for single tasks
+
+1/15
+enhancing schemas, adding collection and list models
+* updated todo and may need to remove category and replace with list
+* currently lists can only be made in collections, update by making collectionId null
+
+1/21
+* so fixed entry turns out there were two databasees
+* still have to test, moveList in List and markEntryCompleted
+* everything else is tested, working on collections now
+* also when list is deleted, entries are also deleted
