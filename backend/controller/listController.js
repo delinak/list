@@ -1,9 +1,8 @@
 const ListService = require('../services/listService');
 
-exports.createList = async(req,res,next) => {
+exports.createList = async (req, res, next) => {
     try {
-        const {name,description,tasks,listCollection} = req.body;
-
+        const { name, description } = req.body;
         if (!name) {
             return res.status(400).json({ status: false, message: "Name is required" });
         }
@@ -11,12 +10,73 @@ exports.createList = async(req,res,next) => {
         const listData = {
             name,
             description,
-            tasks,
-            listCollection, //could not be part of collection Handle Later
-        }
+            entries: []
+        };
         const newList = await ListService.createList(listData);
-        res.status(201).json({status: true, newList});
-    }catch(error){
+        res.status(201).json({ status: true, list: newList });
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.getList = async (req, res, next) => {
+    try {
+        const { listId } = req.params;
+        if (!listId) {
+            return res.status(400).json({ status: false, message: "Invalid List ID" });
+        }
+        const list = await ListService.getList(listId);
+        if (!list) {
+            return res.status(404).json({ status: false, message: 'List not found' });
+        }
+        res.json({ status: true, list });
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.addEntryToList = async (req, res, next) => {
+    try {
+        const { listId } = req.params;
+        const entryData = req.body;
+
+        if (!listId) {
+            return res.status(400).json({ status: false, message: "List ID is required" });
+        }
+
+        const entry = await ListService.addEntryToList(listId, entryData);
+        
+        // Return the entry with proper status
+        res.status(201).json({ 
+            status: true, 
+            entry: {
+                _id: entry._id,
+                task: entry.task,
+                description: entry.description,
+                completed: entry.completed,
+                tags: entry.tags,
+                createdAt: entry.createdAt,
+                updatedAt: entry.updatedAt,
+                list: entry.list
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.getAllIncomplete = async (req, res, next) => {
+    try {
+        const { listId } = req.params;
+        if (!listId) {
+            return res.status(400).json({ status: false, message: "Invalid List ID" });
+        }
+        const entries = await ListService.getIncompleteEntries(listId);
+        if (!entries) {
+            return res.status(404).json({ status: false, message: 'List not found' });
+        }
+        res.json({ status: true, entries });
+    } catch (error) {
         next(error);
     }
 };
@@ -81,20 +141,4 @@ exports.deleteList = async(req,res,next) =>{
     }catch(error){
         next(error);
     }
-};
-
-exports.getAllIncomplete = async(req,res,next) =>{
-    try{
-        const { listId }= req.params;
-        if(!listId){
-            return res.status(400).json({ status: false, message: "Invalid List ID" });
-        }
-        const entries = await ListService.getAllIncomplete(listId);
-        if(!entries){
-            return res.status(404).json({status: false, message: 'List not found'});
-        }
-        res.json({status: true, sucess: entries});
-    }catch(error){
-        next(error);
-    }  
 };

@@ -1,58 +1,65 @@
 import React, { useState } from 'react';
 import {
-  Modal,
   View,
   Text,
+  Modal,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  ScrollView,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 
-const AddModal = ({ visible, onClose, onSuccess }) => {
+const AddModal = ({ visible, onClose, onSubmit, presetColors }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedTags, setSelectedTags] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const resetForm = () => {
-    setName('');
-    setDescription('');
-    setLoading(false);
+  const handleSubmit = async () => {
+    if (!name.trim()) return;
+
+    try {
+      setLoading(true);
+      const newList = {
+        name: name.trim(),
+        description: description.trim(),
+        tags: selectedTags,
+        entries: [],
+        isPinned: false,
+        lastUpdated: new Date().toISOString(),
+      };
+      await onSubmit(newList);
+      setName('');
+      setDescription('');
+      setSelectedTags([]);
+    } catch (error) {
+      console.error('Error creating list:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = () => {
-    if (!name.trim()) {
-      Alert.alert('Error', 'Name is required');
-      return;
-    }
-
-    const newList = {
-      id: Math.random().toString(36).substr(2, 9), // Temporary ID generation
-      name: name.trim(),
-      description: description.trim(),
-      lastUpdated: new Date(),
-      entries: [],
-      tags: [],
-      entriesCount: 0,
-      isPinned: false
-    };
-
-    onSuccess(newList);
-    resetForm();
-    onClose();
+  const toggleTag = (tag) => {
+    setSelectedTags(prev => {
+      const exists = prev.find(t => t.name === tag.name);
+      if (exists) {
+        return prev.filter(t => t.name !== tag.name);
+      }
+      return [...prev, tag];
+    });
   };
 
   return (
     <Modal
       visible={visible}
-      transparent
       animationType="slide"
+      transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
+      <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <Text style={styles.title}>Create New List</Text>
+          <Text style={styles.modalTitle}>Create New List</Text>
           
           <TextInput
             style={styles.input}
@@ -60,30 +67,70 @@ const AddModal = ({ visible, onClose, onSuccess }) => {
             placeholderTextColor="#999"
             value={name}
             onChangeText={setName}
-            autoFocus
           />
           
           <TextInput
-            style={[styles.input, styles.descriptionInput]}
+            style={[styles.input, styles.textArea]}
             placeholder="Description (optional)"
             placeholderTextColor="#999"
             value={description}
             onChangeText={setDescription}
             multiline
+            numberOfLines={3}
           />
-          
+
+          <Text style={styles.sectionTitle}>Tags</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.tagsContainer}
+          >
+            {presetColors.map((color, index) => {
+              const tag = {
+                name: `Tag ${index + 1}`,
+                color,
+              };
+              const isSelected = selectedTags.some(t => t.name === tag.name);
+              
+              return (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.tag,
+                    { backgroundColor: color },
+                    isSelected && styles.selectedTag,
+                  ]}
+                  onPress={() => toggleTag(tag)}
+                >
+                  <Text style={styles.tagText}>{tag.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
           <View style={styles.buttonContainer}>
-            <TouchableOpacity 
-              style={[styles.button, styles.cancelButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
               onPress={onClose}
+              disabled={loading}
             >
               <Text style={styles.buttonText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.button, styles.createButton]} 
+            
+            <TouchableOpacity
+              style={[
+                styles.button,
+                styles.createButton,
+                (!name.trim() || loading) && styles.disabledButton,
+              ]}
               onPress={handleSubmit}
+              disabled={!name.trim() || loading}
             >
-              <Text style={styles.buttonText}>Create</Text>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.buttonText}>Create List</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -93,20 +140,20 @@ const AddModal = ({ visible, onClose, onSuccess }) => {
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    backgroundColor: '#2D3846',
+    backgroundColor: '#1B2430',
     borderRadius: 20,
     padding: 20,
     width: '90%',
     maxWidth: 400,
   },
-  title: {
+  modalTitle: {
     fontSize: 24,
     fontWeight: '600',
     color: '#FFFFFF',
@@ -116,24 +163,47 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
+    padding: 12,
     color: '#FFFFFF',
+    marginBottom: 16,
     fontSize: 16,
   },
-  descriptionInput: {
+  textArea: {
     height: 100,
     textAlignVertical: 'top',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+  },
+  tag: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  selectedTag: {
+    transform: [{ scale: 0.9 }],
+    opacity: 0.8,
+  },
+  tagText: {
+    color: '#FFFFFF',
+    fontWeight: '500',
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10,
-    gap: 10,
+    gap: 12,
   },
   button: {
     flex: 1,
-    padding: 15,
+    paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
@@ -143,10 +213,13 @@ const styles = StyleSheet.create({
   createButton: {
     backgroundColor: '#FF9F45',
   },
+  disabledButton: {
+    opacity: 0.5,
+  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 });
 

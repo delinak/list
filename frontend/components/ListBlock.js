@@ -1,24 +1,38 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
   TouchableOpacity,
   Animated,
+  Platform,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import BoundedList, { ENTRY_HEIGHT, MAX_VISIBLE_ENTRIES } from './BoundedList';
 
-const TagBadge = ({ tag }) => (
-  <View style={[styles.tagBadge, { backgroundColor: tag.color }]}>
-    <Text style={styles.tagText}>{tag.name}</Text>
-  </View>
-);
+const COLLAPSED_HEIGHT = 100;
+const BASE_EXPANDED_HEIGHT = 160; // Height without BoundedList
+const BOUNDED_LIST_HEIGHT = ENTRY_HEIGHT * MAX_VISIBLE_ENTRIES + 32;
+const EXPANDED_HEIGHT = BASE_EXPANDED_HEIGHT + BOUNDED_LIST_HEIGHT;
 
-const ListBlock = ({ list, onPress, isPinned }) => {
-  const [expanded, setExpanded] = useState(false);
-  const [animation] = useState(new Animated.Value(0));
+const ListBlock = ({ list, onPress, fixedExpanded }) => {
+  const [expanded, setExpanded] = useState(fixedExpanded);
+  const [animation] = useState(new Animated.Value(fixedExpanded ? 1 : 0));
+
+  useEffect(() => {
+    if (fixedExpanded) {
+      setExpanded(true);
+      Animated.spring(animation, {
+        toValue: 1,
+        useNativeDriver: false,
+        friction: 8,
+      }).start();
+    }
+  }, [fixedExpanded]);
 
   const toggleExpand = () => {
+    if (fixedExpanded) return;
+    
     const toValue = expanded ? 0 : 1;
     setExpanded(!expanded);
     Animated.spring(animation, {
@@ -28,144 +42,208 @@ const ListBlock = ({ list, onPress, isPinned }) => {
     }).start();
   };
 
-  const expandedHeight = animation.interpolate({
+  const containerHeight = animation.interpolate({
     inputRange: [0, 1],
-    outputRange: [100, 250], // Increased height to accommodate description
+    outputRange: [COLLAPSED_HEIGHT, EXPANDED_HEIGHT],
   });
 
+  const rotateArrow = animation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const containerStyle = expanded ? {
+    height: containerHeight,
+    maxHeight: undefined,
+  } : {
+    height: containerHeight,
+    overflow: 'hidden'
+  };
+
   return (
-    <Animated.View 
-      style={[
-        styles.container,
-        { height: expandedHeight }
-      ]}
-    >
-      <TouchableOpacity 
-        style={styles.mainContent}
+    <Animated.View style={[styles.container, containerStyle]}>
+      <TouchableOpacity
+        style={styles.header}
         onPress={toggleExpand}
-        activeOpacity={0.7}
+        activeOpacity={fixedExpanded ? 1 : 0.7}
       >
-        <View style={styles.header}>
-          <View style={styles.titleContainer}>
+        <View style={styles.headerContent}>
+          <View style={styles.titleSection}>
             <Text style={styles.title}>{list.name}</Text>
-            {isPinned && (
-              <Icon 
-                name="push-pin" 
-                size={16} 
-                color="#FFFFFF" 
-                style={styles.pinIcon} 
-              />
+            <Text style={styles.date}>
+              {formatDate(list.lastUpdated)}
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.detailsButton}
+              onPress={onPress}
+              activeOpacity={0.7}
+            >
+              <Icon name="launch" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            {!fixedExpanded && (
+              <Animated.View style={{ transform: [{ rotate: rotateArrow }] }}>
+                <Icon name="keyboard-arrow-down" size={24} color="#FFFFFF" />
+              </Animated.View>
             )}
           </View>
-          <Text style={styles.countText}>{list.entriesCount || 0} items</Text>
-        </View>
-        
-        <View style={styles.tagsRow}>
-          {list.tags?.map(tag => (
-            <TagBadge key={tag.id} tag={tag} />
-          ))}
         </View>
 
-        {expanded && (
-          <>
-            <Text style={styles.description}>
-              {list.description || 'No description provided'}
-            </Text>
-            
-            <View style={styles.expandedContent}>
-              <TouchableOpacity 
-                style={styles.viewButton}
-                onPress={onPress}
-              >
-                <Text style={styles.viewButtonText}>View Full List</Text>
-              </TouchableOpacity>
+        <View style={styles.metaInfo}>
+          <View style={styles.countBadge}>
+            <Icon name="list" size={16} color="#FFFFFF" style={styles.countIcon} />
+            <Text style={styles.countText}>{list.entries?.length || 0} items</Text>
+          </View>
+          {list.isPinned && (
+            <View style={styles.pinnedBadge}>
+              <Icon name="push-pin" size={16} color="#FFFFFF" />
             </View>
-          </>
-        )}
+          )}
+        </View>
       </TouchableOpacity>
+
+      <Animated.View style={[
+        styles.expandedContent,
+        {
+          opacity: animation,
+          transform: [{
+            translateY: animation.interpolate({
+              inputRange: [0, 1],
+              outputRange: [20, 0],
+            }),
+          }],
+        },
+      ]}>
+        {list.description && (
+          <Text style={styles.description} numberOfLines={2}>
+            {list.description}
+          </Text>
+        )}
+
+        <View style={styles.previewContainer}>
+          <Text style={styles.previewTitle}>Recent Entries</Text>
+          <BoundedList
+            entries={list.entries || []}
+            onEntryPress={() => {}}
+            style={styles.boundedList}
+          />
+        </View>
+      </Animated.View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(173, 196, 206, 0.5)',
+    backgroundColor: 'rgba(173, 196, 206, 0.3)',
     borderRadius: 20,
     marginBottom: 12,
-    overflow: 'hidden',
-  },
-  mainContent: {
-    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   header: {
+    padding: 12,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
   },
-  titleContainer: {
+  titleSection: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    marginRight: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
-    flex: 1,
+    marginBottom: 4,
+  },
+  date: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.7,
+  },
+  metaInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  countBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  countIcon: {
+    marginRight: 4,
   },
   countText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    opacity: 0.8,
-    marginLeft: 8,
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
-  },
-  tagBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tagText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '500',
   },
+  pinnedBadge: {
+    marginLeft: 8,
+    backgroundColor: 'rgba(255, 159, 69, 0.3)',
+    padding: 4,
+    borderRadius: 8,
+  },
+  expandedContent: {
+    padding: 12,
+    paddingTop: 0,
+  },
   description: {
     color: '#FFFFFF',
     fontSize: 14,
-    opacity: 0.8,
-    marginTop: 12,
-    marginBottom: 16,
+    opacity: 0.9,
+    marginBottom: 8,
     lineHeight: 20,
   },
-  expandedContent: {
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    paddingTop: 16,
+  previewContainer: {
+    marginTop: 4,
   },
-  viewButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  viewButtonText: {
+  previewTitle: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
+    marginBottom: 6,
   },
-  pinIcon: {
-    opacity: 0.8,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  detailsButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  boundedList: {
+    marginTop: 4,
   },
 });
 

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 
 const entrySchema = new mongoose.Schema({
-    name: {
+    task: {
         type: String,
         required: true,
     },

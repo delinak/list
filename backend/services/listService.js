@@ -232,6 +232,17 @@ class ListService{
             throw new Error(`Error getting list tags: ${error.message}`);
         }
     }
+
+    static async getAllLists() {
+        try {
+            const lists = await listModel.find()
+                .populate('entries')
+                .sort({ updatedAt: -1 });
+            return lists;
+        } catch (error) {
+            throw new Error(`Error fetching lists: ${error.message}`);
+        }
+    }
 }
 
 module.exports = ListService;

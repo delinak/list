@@ -1,20 +1,20 @@
+import axios from 'axios';
+
 const BASE_URL = __DEV__ 
-  ? 'http://10.0.2.2:3000'  // Android Emulator
-  : 'http://localhost:3000'; // iOS Simulator/Web
+  ? 'http://10.0.2.2:3000/api'  // Android Emulator
+  : 'http://localhost:3000/api'; // iOS Simulator/Web
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
 export const createEntry = async (entryData) => {
   try {
-    const entries = await storage.getEntries();
-    const newEntry = {
-      id: storage.generateId(),
-      ...entryData,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    entries.unshift(newEntry);
-    await storage.saveEntries(entries);
-    return { entry: newEntry };
+    const response = await api.post('/entry', entryData);
+    return response.data;
   } catch (error) {
     throw new Error(`Error creating entry: ${error.message}`);
   }
@@ -22,31 +22,27 @@ export const createEntry = async (entryData) => {
 
 export const createList = async (listData) => {
   try {
-    const lists = await storage.getLists();
-    const newList = {
-      id: storage.generateId(),
-      ...listData,
-      createdAt: new Date().toISOString(),
+    console.log('Creating list with data:', listData); // Debug log
+    const response = await api.post('/list', {
+      name: listData.name,
+      description: listData.description || '',
+      isPinned: listData.isPinned || false,
+      resetCycle: 'none',
       entries: [],
-    };
-    
-    lists.unshift(newList);
-    await storage.saveLists(lists);
-    return { newList };
+      tags: []
+    });
+    console.log('Server response:', response.data); // Debug log
+    return response.data;
   } catch (error) {
+    console.error('Full error details:', error.response || error); // Debug log
     throw new Error(`Error creating list: ${error.message}`);
   }
 };
 
-// List detail related API calls
 export const getListDetails = async (listId) => {
   try {
-    const lists = await storage.getLists();
-    const list = lists.find(l => l.id === listId);
-    if (!list) {
-      throw new Error('List not found');
-    }
-    return { list };
+    const response = await api.get(`/list/${listId}`);
+    return response.data;
   } catch (error) {
     throw new Error(`Error fetching list details: ${error.message}`);
   }
@@ -54,87 +50,66 @@ export const getListDetails = async (listId) => {
 
 export const addEntryToList = async (listId, entryData) => {
   try {
-    const response = await fetch(`${BASE_URL}/list/${listId}/entries`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(entryData),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to add entry');
-    }
-    return await response.json();
+    const response = await api.post(`/list/${listId}/entry`, entryData);
+    return response.data;
   } catch (error) {
     throw new Error(`Error adding entry: ${error.message}`);
   }
 };
 
-export const updateEntry = async (entryId, updatedData) => {
+export const updateEntry = async (listId, entryId, updatedData) => {
   try {
-    const lists = await storage.getLists();
-    let updated = false;
-
-    const updatedLists = lists.map(list => {
-      const entryIndex = list.entries.findIndex(e => e.id === entryId);
-      if (entryIndex !== -1) {
-        list.entries[entryIndex] = {
-          ...list.entries[entryIndex],
-          ...updatedData,
-          updatedAt: new Date().toISOString(),
-        };
-        updated = true;
-      }
-      return list;
-    });
-
-    if (!updated) {
-      const entries = await storage.getEntries();
-      const entryIndex = entries.findIndex(e => e.id === entryId);
-      if (entryIndex !== -1) {
-        entries[entryIndex] = {
-          ...entries[entryIndex],
-          ...updatedData,
-          updatedAt: new Date().toISOString(),
-        };
-        await storage.saveEntries(entries);
-      }
-    } else {
-      await storage.saveLists(updatedLists);
-    }
-
-    return { success: true };
+    const response = await api.patch(`/list/${listId}/entry/${entryId}`, updatedData);
+    return response.data;
   } catch (error) {
     throw new Error(`Error updating entry: ${error.message}`);
   }
 };
 
-export const deleteEntry = async (entryId) => {
+export const deleteEntry = async (listId, entryId) => {
   try {
-    const lists = await storage.getLists();
-    let deleted = false;
-
-    const updatedLists = lists.map(list => ({
-      ...list,
-      entries: list.entries.filter(e => {
-        if (e.id === entryId) {
-          deleted = true;
-          return false;
-        }
-        return true;
-      }),
-    }));
-
-    if (!deleted) {
-      const entries = await storage.getEntries();
-      const updatedEntries = entries.filter(e => e.id !== entryId);
-      await storage.saveEntries(updatedEntries);
-    } else {
-      await storage.saveLists(updatedLists);
-    }
-
+    await api.delete(`/list/${listId}/entry/${entryId}`);
     return { success: true };
   } catch (error) {
     throw new Error(`Error deleting entry: ${error.message}`);
+  }
+};
+
+export const getIncompleteEntries = async (listId) => {
+  try {
+    const response = await api.get(`/list/${listId}/incomplete`);
+    return response.data;
+  } catch (error) {
+    throw new Error(`Error fetching incomplete entries: ${error.message}`);
+  }
+};
+
+export const getLists = async () => {
+  try {
+    const response = await api.get('/list');
+    return response.data;
+  } catch (error) {
+    throw new Error(`Error fetching lists: ${error.message}`);
+  }
+};
+
+export const updateList = async (listId, updateData) => {
+  try {
+    const response = await api.patch(`/list/${listId}`, {
+      ...updateData,
+      lastUpdated: new Date().toISOString(),
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(`Error updating list: ${error.message}`);
+  }
+};
+
+export const deleteList = async (listId) => {
+  try {
+    await api.delete(`/list/${listId}`);
+    return { success: true };
+  } catch (error) {
+    throw new Error(`Error deleting list: ${error.message}`);
   }
 }; 

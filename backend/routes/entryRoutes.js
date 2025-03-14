@@ -20,7 +20,7 @@ entryRoutes.post('/createEntry', async (req, res, next) => {
 });
 
 //update a task
-entryRoutes.put('/updateEntry/:entryId',  async (req, res, next) => {
+entryRoutes.put('/:entryId',  async (req, res, next) => {
     try {
         await todoController.updateEntry(req, res, next); 
     } catch (error) {
@@ -38,7 +38,7 @@ entryRoutes.put('/updateEntry/:entryId',  async (req, res, next) => {
 // });
 
 //get a task
-entryRoutes.get('/getEntry/:entryId', async (req, res, next) => {
+entryRoutes.get('/:entryId', async (req, res, next) => {
     try {
         //console.log("Router taskId passed to controller:", req.params.taskId);
         await todoController.getEntry(req, res, next); 
@@ -48,7 +48,7 @@ entryRoutes.get('/getEntry/:entryId', async (req, res, next) => {
 });
 
 //delete a task
-entryRoutes.delete('/deleteEntry/:entryId', async (req, res, next) => {
+entryRoutes.delete('/:entryId', async (req, res, next) => {
     try {
         await todoController.deleteEntry(req, res, next); 
     } catch (error) {

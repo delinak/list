@@ -13,37 +13,78 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import ListEntry from '../components/ListEntry';
+import AddEntryModal from '../components/AddEntryModal';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getListDetails, addEntryToList, updateEntry, deleteEntry } from '../services/api';
+import { storage } from '../services/storage';
 
 const ListDetailScreen = ({ route, navigation }) => {
-  const { listId } = route.params;
-  const [list, setList] = useState(null);
-  const [entries, setEntries] = useState([]);
-  const [filterType, setFilterType] = useState('all'); // 'all', 'completed', 'incomplete'
-  const [selectedTag, setSelectedTag] = useState(null);
-  const [showBottomSheet, setShowBottomSheet] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { listId, listData } = route.params;
+  const [list, setList] = useState(listData);
+  const [entries, setEntries] = useState(listData.entries || []);
+  const [filterType, setFilterType] = useState('all');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [tags, setTags] = useState(listData.tags || []);
 
   useEffect(() => {
-    fetchListDetails();
-  }, [listId]);
-
-  const fetchListDetails = async () => {
-    try {
-      const response = await getListDetails(listId);
-      setList(response.list);
-      setEntries(response.list.entries || []);
-    } catch (error) {
-      Alert.alert('Error', error.message);
-    } finally {
-      setLoading(false);
+    // Extract unique tags from entries if not already available
+    if (!tags || tags.length === 0) {
+      const uniqueTags = new Map();
+      entries?.forEach(entry => {
+        entry.tags?.forEach(tag => {
+          if (!uniqueTags.has(tag.id)) {
+            uniqueTags.set(tag.id, tag);
+          }
+        });
+      });
+      setTags(Array.from(uniqueTags.values()));
     }
-  };
+  }, []);
 
   const handleAddEntry = () => {
-    setShowBottomSheet(true);
+    setShowAddModal(true);
+  };
+
+  const handleEntrySubmit = async (newEntry) => {
+    try {
+      // Get all lists from storage
+      const lists = await storage.getLists();
+      const listIndex = lists.findIndex(l => l.id === listId);
+      
+      if (listIndex === -1) {
+        throw new Error('List not found');
+      }
+
+      // Add the new entry to the list
+      lists[listIndex].entries = [newEntry, ...lists[listIndex].entries];
+      lists[listIndex].lastUpdated = new Date().toISOString();
+      
+      // Save updated lists back to storage
+      await storage.saveLists(lists);
+      
+      // Update local state
+      setEntries(prevEntries => [newEntry, ...prevEntries]);
+      setList(prevList => ({
+        ...prevList,
+        lastUpdated: new Date().toISOString()
+      }));
+      
+      // Update tags if new ones were added
+      const newTags = newEntry.tags?.filter(
+        newTag => !tags.some(existingTag => existingTag.id === newTag.id)
+      ) || [];
+      
+      if (newTags.length > 0) {
+        setTags(prevTags => [...prevTags, ...newTags]);
+      }
+      
+      // Close the modal
+      setShowAddModal(false);
+    } catch (error) {
+      console.error('Error adding entry:', error);
+      Alert.alert('Error', 'Failed to add entry: ' + error.message);
+    }
   };
 
   const handleRandomEntry = () => {
@@ -53,23 +94,16 @@ const ListDetailScreen = ({ route, navigation }) => {
       return;
     }
     const randomEntry = incompleteEntries[Math.floor(Math.random() * incompleteEntries.length)];
-    // Highlight the random entry or show in a modal
     Alert.alert('Random Entry', randomEntry.name);
   };
 
   const getFilteredEntries = () => {
     let filtered = [...entries];
     
-    // Filter by completion status
     if (filterType === 'completed') {
       filtered = filtered.filter(entry => entry.completed);
     } else if (filterType === 'incomplete') {
       filtered = filtered.filter(entry => !entry.completed);
-    }
-    
-    // Filter by tag
-    if (selectedTag) {
-      filtered = filtered.filter(entry => entry.tags?.includes(selectedTag));
     }
     
     return filtered;
@@ -77,25 +111,65 @@ const ListDetailScreen = ({ route, navigation }) => {
 
   const handleUpdateEntry = async (updatedEntry) => {
     try {
-      await updateEntry(updatedEntry.id, updatedEntry);
+      const lists = await storage.getLists();
+      const listIndex = lists.findIndex(l => l.id === listId);
+      
+      if (listIndex === -1) {
+        throw new Error('List not found');
+      }
+
+      // Update the entry in the list
+      lists[listIndex].entries = lists[listIndex].entries.map(entry =>
+        entry.id === updatedEntry.id ? updatedEntry : entry
+      );
+      lists[listIndex].lastUpdated = new Date().toISOString();
+      
+      // Save updated lists back to storage
+      await storage.saveLists(lists);
+      
+      // Update local state
       setEntries(prevEntries =>
         prevEntries.map(entry =>
           entry.id === updatedEntry.id ? updatedEntry : entry
         )
       );
+      setList(prevList => ({
+        ...prevList,
+        lastUpdated: new Date().toISOString()
+      }));
     } catch (error) {
-      Alert.alert('Error', error.message);
+      console.error('Error updating entry:', error);
+      Alert.alert('Error', 'Failed to update entry: ' + error.message);
     }
   };
 
   const handleDeleteEntry = async (entryId) => {
     try {
-      await deleteEntry(entryId);
+      const lists = await storage.getLists();
+      const listIndex = lists.findIndex(l => l.id === listId);
+      
+      if (listIndex === -1) {
+        throw new Error('List not found');
+      }
+
+      // Remove the entry from the list
+      lists[listIndex].entries = lists[listIndex].entries.filter(entry => entry.id !== entryId);
+      lists[listIndex].lastUpdated = new Date().toISOString();
+      
+      // Save updated lists back to storage
+      await storage.saveLists(lists);
+      
+      // Update local state
       setEntries(prevEntries =>
         prevEntries.filter(entry => entry.id !== entryId)
       );
+      setList(prevList => ({
+        ...prevList,
+        lastUpdated: new Date().toISOString()
+      }));
     } catch (error) {
-      Alert.alert('Error', error.message);
+      console.error('Error deleting entry:', error);
+      Alert.alert('Error', 'Failed to delete entry: ' + error.message);
     }
   };
 
@@ -154,6 +228,7 @@ const ListDetailScreen = ({ route, navigation }) => {
             key={entry.id}
             entry={entry}
             onUpdate={handleUpdateEntry}
+            onDelete={() => handleDeleteEntry(entry.id)}
           />
         ))}
       </ScrollView>
@@ -174,15 +249,18 @@ const ListDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         )}
         
-        <TouchableOpacity style={styles.actionButton} onPress={() => setShowBottomSheet(true)}>
-          <Icon name="local-offer" size={24} color="#FFF" />
-          <Text style={styles.actionText}>Tags</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={styles.actionButton} onPress={handleRandomEntry}>
           <Icon name="shuffle" size={24} color="#FFF" />
           <Text style={styles.actionText}>Random</Text>
         </TouchableOpacity>
       </View>
+
+      <AddEntryModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={handleEntrySubmit}
+        existingTags={tags}
+      />
     </LinearGradient>
   );
 };
@@ -235,7 +313,9 @@ const styles = StyleSheet.create({
   },
   entriesContainer: {
     flex: 1,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 80,
   },
   bottomBar: {
     flexDirection: 'row',
@@ -244,6 +324,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.1)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   actionButton: {
     flexDirection: 'row',

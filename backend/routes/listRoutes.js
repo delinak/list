@@ -2,48 +2,59 @@ const listRoutes = require('express').Router();
 const listController = require('../controller/listController');
 const ListService = require('../services/listService');
 
-//create a new list
-listRoutes.post('/createList', async (req, res, next) => {
+// Get all lists
+listRoutes.get('/', async (req, res, next) => {
     try {
-        await listController.createList(req, res, next); 
+        const lists = await ListService.getAllLists();
+        res.json({ status: true, lists });
     } catch (error) {
         next(error);
     }
 });
 
-//update a list name and/or description
-listRoutes.put('/updateList/:listId', async (req, res, next) => {
+// Create a new list
+listRoutes.post('/', async (req, res, next) => {
     try {
-        await listController.updateList(req, res, next); 
+        const list = await ListService.createList(req.body);
+        res.status(201).json({ status: true, list });
     } catch (error) {
-        next(error); 
+        next(error);
     }
 });
 
-//delete list
-listRoutes.delete('/deleteList/:listId', async (req, res, next) => {
+// Get a specific list with its entries
+listRoutes.get('/:listId', async (req, res, next) => {
     try {
-        await listController.deleteList(req, res, next); 
+        await listController.getList(req, res, next);
     } catch (error) {
-        next(error); 
+        next(error);
     }
 });
 
-listRoutes.get('/getAllIncomplete/:listId', async (req, res, next) => {
+// Add an entry to a list
+listRoutes.post('/:listId/entries', async (req, res, next) => {
     try {
-        await listController.getAllIncomplete(req, res, next); 
+        await listController.addEntryToList(req, res, next);
     } catch (error) {
-        next(error); 
+        next(error);
     }
 });
 
 // Get incomplete entries from a list
 listRoutes.get('/:listId/incomplete', async (req, res, next) => {
     try {
-        const entries = await ListService.getIncompleteEntries(req.params.listId);
-        res.json({ status: true, entries });
+        await listController.getAllIncomplete(req, res, next);
     } catch (error) {
         next(error);
+    }
+});
+
+// Get incomplete entries from a list
+listRoutes.get('/getAllIncomplete/:listId', async (req, res, next) => {
+    try {
+        await listController.getAllIncomplete(req, res, next); 
+    } catch (error) {
+        next(error); 
     }
 });
 
